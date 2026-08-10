@@ -1,0 +1,26 @@
+# Node / React
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.pnpm-debug.log*
+npm-debug.log*
+
+# Java / Maven
+backend/target/
+*.class
+*.jar
+*.war
+
+# IDE & OS Files
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# H2 Database & Local Data Logs
+backend/data/
+*.log
+
+# Sensitive Files
+.env

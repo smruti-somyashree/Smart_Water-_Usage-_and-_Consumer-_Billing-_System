@@ -1,0 +1,2 @@
+import { Link } from 'react-router-dom'
+export default function WelcomePage({title}){return <main className="grid min-h-screen place-items-center bg-slate-50 px-6"><section className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-8 text-center"><h1 className="text-xl font-semibold text-slate-900">{title}</h1><p className="mt-2 text-sm text-slate-600">Your dashboard will be available in a later milestone.</p><Link to="/login" className="mt-6 inline-block text-sm font-medium text-slate-900 underline">Back to sign in</Link></section></main>}
