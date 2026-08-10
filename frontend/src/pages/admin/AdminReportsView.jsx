@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { formatCurrency, formatDate } from '../../utils/formatters'
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://smart-water-usage-and-consumer-billing.onrender.com'
 
 export default function AdminReportsView() {
   const token = localStorage.getItem('smartwater.accessToken')

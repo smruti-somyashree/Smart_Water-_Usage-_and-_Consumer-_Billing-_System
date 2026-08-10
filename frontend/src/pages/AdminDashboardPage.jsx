@@ -13,7 +13,7 @@ import AdminReportsView from './admin/AdminReportsView'
 import AdminSettingsView from './admin/AdminSettingsView'
 import AdminTariffsView from './admin/AdminTariffsView'
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://smart-water-usage-and-consumer-billing.onrender.com'
 
 export default function AdminDashboardPage() {
   const navigate = useNavigate()

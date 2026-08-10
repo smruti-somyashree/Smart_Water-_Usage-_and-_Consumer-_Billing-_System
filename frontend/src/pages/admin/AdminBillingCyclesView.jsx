@@ -2,7 +2,7 @@ import { CheckCircle2, Eye, Layers, Plus, RefreshCw, Truck, FileText, X } from '
 import { useEffect, useState } from 'react'
 import { formatCurrency, formatDate } from '../../utils/formatters'
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://smart-water-usage-and-consumer-billing.onrender.com'
 
 export default function AdminBillingCyclesView() {
   const token = localStorage.getItem('smartwater.accessToken')

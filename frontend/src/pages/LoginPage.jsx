@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import BuildingsSkyline from '../components/BuildingsSkyline'
 import Reveal from '../components/Reveal'
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://smart-water-usage-and-consumer-billing.onrender.com'
 
 export default function LoginPage() {
   const navigate = useNavigate()

@@ -2,7 +2,7 @@ import { AlertTriangle, Archive, ArrowRight, CheckCircle2, IndianRupee, Droplets
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://smart-water-usage-and-consumer-billing.onrender.com'
 
 export default function WelcomePage({ title }) {
   const navigate = useNavigate()

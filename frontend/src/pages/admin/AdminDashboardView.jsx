@@ -2,7 +2,7 @@ import { Activity, AlertTriangle, ArrowUpRight, CheckCircle2, IndianRupee, Dropl
 import { useEffect, useState } from 'react'
 import { formatCurrency, formatDate } from '../../utils/formatters'
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://smart-water-usage-and-consumer-billing.onrender.com'
 
 export default function AdminDashboardView({ onNavigate }) {
   const token = localStorage.getItem('smartwater.accessToken')

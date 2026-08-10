@@ -1,7 +1,7 @@
 import { UserCheck, UserX, CheckCircle2, Home, Plus, Search, Trash2, Users, ShieldAlert } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://smart-water-usage-and-consumer-billing.onrender.com'
 
 export default function AdminHouseholdsView() {
   const token = localStorage.getItem('smartwater.accessToken')

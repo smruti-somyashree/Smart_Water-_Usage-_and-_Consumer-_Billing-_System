@@ -5,7 +5,7 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import PaymentGatewayModal from '../components/PaymentGatewayModal'
 import { formatCurrency, formatDate } from '../utils/formatters'
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://smart-water-usage-and-consumer-billing.onrender.com'
 
 export default function ResidentDashboardPage() {
   const navigate = useNavigate()

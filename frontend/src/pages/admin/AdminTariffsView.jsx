@@ -1,7 +1,7 @@
 import { CheckCircle2, IndianRupee, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://smart-water-usage-and-consumer-billing.onrender.com'
 
 export default function AdminTariffsView() {
   const token = localStorage.getItem('smartwater.accessToken')
