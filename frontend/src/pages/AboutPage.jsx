@@ -120,10 +120,10 @@ export default function AboutPage() {
             </h2>
             <button
               type="button"
-              onClick={() => navigate('/signup')}
+              onClick={() => navigate('/login')}
               className="mt-6 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-sky-600 to-teal-500 px-5 py-2.5 text-sm font-medium text-white shadow-md shadow-sky-600/20 transition-transform hover:scale-[1.03]"
             >
-              Create an account
+              Sign in
               <ArrowRight size={16} aria-hidden="true" />
             </button>
           </Reveal>

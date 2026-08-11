@@ -1,4 +1,4 @@
-import { ArrowLeft, Droplets } from 'lucide-react'
+import { ArrowLeft, Droplets, ShieldCheck, Building2, Home } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BuildingsSkyline from '../components/BuildingsSkyline'
@@ -6,10 +6,17 @@ import Reveal from '../components/Reveal'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://smart-water-usage-and-consumer-billing.onrender.com'
 
+const ACCOUNT_TYPES = [
+  { value: 'SUPER_ADMIN', label: 'Super Admin', icon: ShieldCheck },
+  { value: 'COMMUNITY_ADMIN', label: 'Community Admin', icon: Building2 },
+  { value: 'RESIDENT', label: 'Resident', icon: Home },
+]
+
 export default function LoginPage() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [accountType, setAccountType] = useState('RESIDENT')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -26,7 +33,7 @@ export default function LoginPage() {
   async function submit(e) {
     e.preventDefault()
     setError('')
-    if (!email || !password) return setError('Email and password are required.')
+    if (!email || !password) return setError('User ID and password are required.')
     if (!/^\S+@\S+\.\S+$/.test(email)) return setError('Enter a valid email address.')
 
     setLoading(true)
@@ -38,19 +45,37 @@ export default function LoginPage() {
       })
       if (!r.ok) {
         const body = await r.json().catch(() => null)
-        setError(body?.message || 'Incorrect email or password.')
+        setError(body?.message || 'Incorrect user ID or password.')
         return
       }
       const data = await r.json()
+      const actualRole = data.user?.role
+
+      // The selected account type is a UX guard, not the source of truth for
+      // authorization — the backend already knows the real role from the JWT.
+      // We just refuse to proceed if what the person picked doesn't match the
+      // account they actually logged into, so they don't land somewhere
+      // confusing or assume they signed in as the wrong role.
+      if (actualRole !== accountType) {
+        setError(
+          `This account is registered as ${roleLabel(actualRole)}, not ${roleLabel(accountType)}. Please select the correct account type.`
+        )
+        return
+      }
+
       localStorage.setItem('smartwater.accessToken', data.accessToken)
       localStorage.setItem('smartwater.refreshToken', data.refreshToken || '')
       const dashboards = { SUPER_ADMIN: '/super-admin/dashboard', COMMUNITY_ADMIN: '/admin/dashboard', RESIDENT: '/resident/dashboard' }
-      navigate(dashboards[data.user?.role] || '/login', { replace: true })
+      navigate(dashboards[actualRole] || '/login', { replace: true })
     } catch {
       setError("Couldn't reach the server. Make sure the Spring Boot backend is running on port 8082.")
     } finally {
       setLoading(false)
     }
+  }
+
+  function roleLabel(role) {
+    return ACCOUNT_TYPES.find((t) => t.value === role)?.label || role || 'an unknown role'
   }
 
   return (
@@ -78,7 +103,7 @@ export default function LoginPage() {
         Back to home
       </Link>
 
-      <Reveal className="relative w-full max-w-[340px]">
+      <Reveal className="relative w-full max-w-[360px]">
         <section className="rounded-xl border border-slate-200 bg-white/90 p-7 shadow-lg shadow-sky-900/5 backdrop-blur sm:p-8">
         <div className="mb-7 text-center">
           <Link to="/" className="inline-grid h-11 w-11 place-items-center rounded-full bg-gradient-to-br from-sky-500 to-teal-500 text-white shadow-sm">
@@ -91,8 +116,27 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={submit} noValidate autoComplete="off">
-          <label className="block text-sm font-medium text-slate-700" htmlFor="email">
-            Email
+          <p className="block text-sm font-medium text-slate-700">Account type</p>
+          <div className="mt-1.5 grid grid-cols-3 gap-2">
+            {ACCOUNT_TYPES.map(({ value, label, icon: Icon }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setAccountType(value)}
+                className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-[11px] font-bold transition-colors cursor-pointer ${
+                  accountType === value
+                    ? 'border-sky-600 bg-sky-600 text-white'
+                    : 'border-slate-300 text-slate-700 hover:border-slate-400'
+                }`}
+              >
+                <Icon size={16} />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <label className="mt-4 block text-sm font-medium text-slate-700" htmlFor="email">
+            User ID (email)
           </label>
           <input
             id="email"
@@ -140,11 +184,9 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-slate-500">
-          New here?{' '}
-          <Link to="/signup" className="font-medium text-sky-700 hover:text-sky-800">
-            Create an account
-          </Link>
+        <p className="mt-6 text-center text-xs text-slate-500">
+          Resident and Community Admin accounts are created by your apartment's administration.
+          Contact them if you don't have login access yet.
         </p>
         </section>
       </Reveal>

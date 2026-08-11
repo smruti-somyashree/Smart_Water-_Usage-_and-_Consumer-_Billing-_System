@@ -1,15 +1,11 @@
 spring:
   datasource:
-    url: "jdbc:h2:file:./data/smartwater;MODE=PostgreSQL;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1"
-    username: sa
-    password: ""
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
+    url: "jdbc:postgresql://localhost:5432/water_management_db"
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     open-in-view: false
   flyway:
     enabled: true

@@ -5,7 +5,6 @@ import AboutPage from './pages/AboutPage'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import PricingPage from './pages/PricingPage'
-import SignupPage from './pages/SignupPage'
 import AccessDeniedPage from './pages/AccessDeniedPage'
 import AdminDashboardPage from './pages/AdminDashboardPage'
 import ResidentDashboardPage from './pages/ResidentDashboardPage'
@@ -42,7 +41,6 @@ export default function App() {
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/about" element={<AboutPage />} />
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/signup" element={<SignupPage />} />
       <Route path="/access-denied" element={<AccessDeniedPage />} />
 
       {/* Protected Administrator Routes (ADMIN Only) */}

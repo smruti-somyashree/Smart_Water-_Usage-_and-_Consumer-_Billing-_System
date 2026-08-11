@@ -114,7 +114,7 @@ export default function PricingPage() {
                   </p>
                   <button
                     type="button"
-                    onClick={() => navigate('/signup')}
+                    onClick={() => navigate('/login')}
                     className={`mt-6 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
                       tier.highlight
                         ? 'bg-white text-sky-700 hover:bg-sky-50'
@@ -179,10 +179,10 @@ export default function PricingPage() {
               </p>
               <button
                 type="button"
-                onClick={() => navigate('/signup')}
+                onClick={() => navigate('/login')}
                 className="mt-6 inline-flex items-center gap-1.5 rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-sky-700 shadow-lg shadow-sky-900/20 transition-transform hover:scale-[1.03]"
               >
-                Get started free
+                Sign in
                 <ArrowRight size={16} aria-hidden="true" />
               </button>
             </Reveal>

@@ -1,4 +1,4 @@
-import { UserCheck, UserX, CheckCircle2, Home, Plus, Search, Trash2, Users, ShieldAlert } from 'lucide-react'
+import { UserCheck, UserX, CheckCircle2, Home, Plus, Search, Trash2, Users, ShieldAlert, UserPlus, KeyRound } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://smart-water-usage-and-consumer-billing.onrender.com'
@@ -8,23 +8,46 @@ export default function AdminHouseholdsView() {
   const [households, setHouseholds] = useState([])
   const [pendingUsers, setPendingUsers] = useState([])
   const [showForm, setShowForm] = useState(false)
+  const [showResidentForm, setShowResidentForm] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [myApartmentId, setMyApartmentId] = useState(null)
 
   const [flatNumber, setFlatNumber] = useState('C-301')
   const [flatSizeSqft, setFlatSizeSqft] = useState('1200')
   const [occupancyCount, setOccupancyCount] = useState('3')
   const [hasMeter, setHasMeter] = useState(true)
+
+  const [residentName, setResidentName] = useState('')
+  const [residentEmail, setResidentEmail] = useState('')
+  const [residentPassword, setResidentPassword] = useState('')
+  const [residentFlatNumber, setResidentFlatNumber] = useState('')
+  const [residentOccupancy, setResidentOccupancy] = useState('3')
+  const [residentFlatSize, setResidentFlatSize] = useState('1200')
+
   const [actionMsg, setActionMsg] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
 
+  useEffect(() => { fetchMyApartmentId() }, [])
+
   useEffect(() => {
+    if (!myApartmentId) return
     fetchHouseholds()
     fetchPendingUsers()
-  }, [])
+  }, [myApartmentId])
+
+  async function fetchMyApartmentId() {
+    const headers = { Authorization: `Bearer ${token}` }
+    const r = await fetch(`${apiBaseUrl}/api/users/me`, { headers })
+    if (r.ok) {
+      const me = await r.json()
+      setMyApartmentId(me.apartmentId)
+    }
+  }
 
   async function fetchHouseholds() {
     const headers = { Authorization: `Bearer ${token}` }
-    const r = await fetch(`${apiBaseUrl}/api/apartments/1/households`, { headers })
+    if (!myApartmentId) return
+    const r = await fetch(`${apiBaseUrl}/api/apartments/${myApartmentId}/households`, { headers })
     if (r.ok) setHouseholds(await r.json())
   }
 
@@ -82,7 +105,8 @@ export default function AdminHouseholdsView() {
     setActionMsg('')
     setErrorMsg('')
     try {
-      const r = await fetch(`${apiBaseUrl}/api/apartments/1/households`, {
+      if (!myApartmentId) throw new Error('Community not loaded')
+      const r = await fetch(`${apiBaseUrl}/api/apartments/${myApartmentId}/households`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -122,6 +146,54 @@ export default function AdminHouseholdsView() {
     }
   }
 
+  async function handleCreateResident(e) {
+    e.preventDefault()
+    setActionMsg('')
+    setErrorMsg('')
+
+    if (!myApartmentId) {
+      setErrorMsg('Could not determine your community yet — please wait a moment and try again.')
+      return
+    }
+    if (residentPassword.length < 8) {
+      setErrorMsg('Password must be at least 8 characters.')
+      return
+    }
+
+    try {
+      const r = await fetch(`${apiBaseUrl}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          apartmentId: myApartmentId,
+          name: residentName.trim(),
+          email: residentEmail.trim().toLowerCase(),
+          password: residentPassword,
+          role: 'RESIDENT',
+          flatNumber: residentFlatNumber.trim().toUpperCase(),
+          occupancyCount: parseInt(residentOccupancy) || 3,
+          flatSizeSqft: parseInt(residentFlatSize) || 1200,
+        }),
+      })
+      if (r.ok) {
+        setActionMsg(`Resident account created for ${residentEmail} (Flat ${residentFlatNumber.toUpperCase()}). They can log in immediately.`)
+        setResidentName('')
+        setResidentEmail('')
+        setResidentPassword('')
+        setResidentFlatNumber('')
+        setResidentOccupancy('3')
+        setResidentFlatSize('1200')
+        setShowResidentForm(false)
+        fetchHouseholds()
+      } else {
+        const body = await r.json().catch(() => null)
+        setErrorMsg(body?.message || 'Could not create resident account. The email may already be in use.')
+      }
+    } catch {
+      setErrorMsg('Failed to create resident account.')
+    }
+  }
+
   const filteredHouseholds = households.filter((h) =>
     h.flatNumber.toLowerCase().includes(searchQuery.toLowerCase())
   )
@@ -131,9 +203,9 @@ export default function AdminHouseholdsView() {
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
           <h2 className="font-display text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Users size={22} className="text-sky-600" /> Household Directory & Resident Approvals
+            <Users size={22} className="text-sky-600" /> Household & Resident Directory
           </h2>
-          <p className="text-xs text-slate-500">Approve resident signups, manage flat numbers, floor area (sqft), and meter installation status.</p>
+          <p className="text-xs text-slate-500">Manage flat numbers, floor area (sqft), meter installation status, and resident login accounts.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -146,6 +218,12 @@ export default function AdminHouseholdsView() {
             />
             <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
           </div>
+          <button
+            onClick={() => setShowResidentForm(!showResidentForm)}
+            className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-teal-700 cursor-pointer"
+          >
+            <UserPlus size={16} /> Create Resident Account
+          </button>
           <button
             onClick={() => setShowForm(!showForm)}
             className="flex items-center gap-1.5 rounded-lg bg-sky-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-sky-700 cursor-pointer"
@@ -168,27 +246,120 @@ export default function AdminHouseholdsView() {
         </div>
       )}
 
-      {/* PENDING RESIDENT ACCOUNT APPROVALS SECTION */}
-      <section className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50/70 to-orange-50/40 p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between border-b border-amber-200/60 pb-3">
-          <div>
-            <h3 className="font-display text-base font-bold text-amber-950 flex items-center gap-2">
-              <ShieldAlert size={18} className="text-amber-600" /> Pending Resident Account Approvals
-            </h3>
-            <p className="text-xs text-amber-800">
-              New residents who registered with their Flat Number require Admin approval before logging in or receiving bills.
-            </p>
+      {/* CREATE RESIDENT ACCOUNT FORM */}
+      {showResidentForm && (
+        <form onSubmit={handleCreateResident} className="rounded-xl border border-teal-200 bg-teal-50/50 p-5 space-y-4">
+          <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+            <KeyRound size={16} className="text-teal-600" /> Create Resident Login Account
+          </h3>
+          <p className="text-xs text-slate-500 -mt-2">
+            Residents no longer self-register. Create their login here — the account is active immediately, no separate approval step needed.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Full Name</label>
+              <input
+                type="text"
+                required
+                value={residentName}
+                onChange={(e) => setResidentName(e.target.value)}
+                placeholder="e.g. Priya Sharma"
+                className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Email (User ID)</label>
+              <input
+                type="email"
+                required
+                value={residentEmail}
+                onChange={(e) => setResidentEmail(e.target.value)}
+                placeholder="resident@apartment.com"
+                className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Temporary Password</label>
+              <input
+                type="text"
+                required
+                minLength={8}
+                value={residentPassword}
+                onChange={(e) => setResidentPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Flat Number</label>
+              <input
+                type="text"
+                required
+                value={residentFlatNumber}
+                onChange={(e) => setResidentFlatNumber(e.target.value)}
+                placeholder="e.g. A-101"
+                className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold focus:outline-none uppercase"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Occupants Count</label>
+              <input
+                type="number"
+                min="1"
+                value={residentOccupancy}
+                onChange={(e) => setResidentOccupancy(e.target.value)}
+                className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Floor Area (sq.ft)</label>
+              <input
+                type="number"
+                min="200"
+                value={residentFlatSize}
+                onChange={(e) => setResidentFlatSize(e.target.value)}
+                className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold focus:outline-none"
+              />
+            </div>
           </div>
-          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-extrabold text-amber-900 border border-amber-300">
-            {pendingUsers.length} Pending Approval{pendingUsers.length === 1 ? '' : 's'}
-          </span>
-        </div>
+          <p className="text-[11px] text-teal-800">
+            If the flat number already exists, the resident will be linked to that existing household. Otherwise a new household record is created automatically.
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setShowResidentForm(false)}
+              className="rounded bg-white border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="rounded bg-teal-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-teal-700 cursor-pointer"
+            >
+              Create Resident Account
+            </button>
+          </div>
+        </form>
+      )}
 
-        {pendingUsers.length === 0 ? (
-          <div className="rounded-lg bg-white/70 p-4 text-center text-xs text-slate-500 font-medium">
-            No pending resident signup requests right now.
+      {/* LEGACY PENDING APPROVALS — kept for any older self-registered records; new residents skip this entirely */}
+      {pendingUsers.length > 0 && (
+        <section className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50/70 to-orange-50/40 p-6 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-amber-200/60 pb-3">
+            <div>
+              <h3 className="font-display text-base font-bold text-amber-950 flex items-center gap-2">
+                <ShieldAlert size={18} className="text-amber-600" /> Legacy Pending Approvals
+              </h3>
+              <p className="text-xs text-amber-800">
+                These are older self-registered accounts awaiting approval, from before resident accounts were admin-created.
+              </p>
+            </div>
+            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-extrabold text-amber-900 border border-amber-300">
+              {pendingUsers.length} Pending
+            </span>
           </div>
-        ) : (
+
           <div className="overflow-x-auto rounded-lg bg-white border border-amber-200/80">
             <table className="w-full text-left text-xs text-slate-700">
               <thead className="bg-amber-50/70 text-[11px] font-bold uppercase text-amber-900 border-b border-amber-200/60">
@@ -234,8 +405,8 @@ export default function AdminHouseholdsView() {
               </tbody>
             </table>
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
       {/* ADD HOUSEHOLD FORM */}
       {showForm && (

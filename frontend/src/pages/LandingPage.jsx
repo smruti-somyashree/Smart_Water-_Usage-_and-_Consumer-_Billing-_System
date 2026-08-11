@@ -277,7 +277,7 @@ export default function LandingPage() {
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                   <button
                     type="button"
-                    onClick={() => navigate('/signup')}
+                    onClick={() => navigate('/login')}
                     className="flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-sky-600 to-teal-500 px-5 py-2.5 text-sm font-medium text-white shadow-md shadow-sky-600/20 transition-transform hover:scale-[1.03] hover:shadow-lg hover:shadow-sky-600/30"
                   >
                     Get started
@@ -522,7 +522,7 @@ export default function LandingPage() {
                     </ul>
                     <button
                       type="button"
-                      onClick={() => navigate('/signup')}
+                      onClick={() => navigate('/login')}
                       className={`mt-6 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
                         tier.highlight
                           ? 'bg-white text-sky-700 hover:bg-sky-50'
@@ -577,10 +577,10 @@ export default function LandingPage() {
               </p>
               <button
                 type="button"
-                onClick={() => navigate('/signup')}
+                onClick={() => navigate('/login')}
                 className="mt-6 inline-flex items-center gap-1.5 rounded-lg bg-white px-5 py-2.5 text-sm font-medium text-sky-700 shadow-lg shadow-sky-900/20 transition-transform hover:scale-[1.03]"
               >
-                Create an account
+                Sign in
                 <ArrowRight size={16} aria-hidden="true" />
               </button>
             </Reveal>
