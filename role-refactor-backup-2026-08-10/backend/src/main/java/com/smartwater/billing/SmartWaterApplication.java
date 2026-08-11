@@ -38,7 +38,7 @@ import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 @EnableScheduling
 @SpringBootApplication public class SmartWaterApplication { public static void main(String[] a){SpringApplication.run(SmartWaterApplication.class,a);} }
 
-enum Role { SUPER_ADMIN, COMMUNITY_ADMIN, RESIDENT } enum UsageSource { MANUAL, CSV_BULK } enum CycleStatus { OPEN, FINALIZED, ARCHIVED }
+enum Role { ADMIN, RESIDENT } enum UsageSource { MANUAL, CSV_BULK } enum CycleStatus { OPEN, FINALIZED, ARCHIVED }
 
 @Entity @Table(name="apartments") class Apartment {
   @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
@@ -49,8 +49,7 @@ enum Role { SUPER_ADMIN, COMMUNITY_ADMIN, RESIDENT } enum UsageSource { MANUAL, 
 }
 @Entity @Table(name="households") class Household {
   @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
-  // SUPER_ADMIN is intentionally platform-scoped and therefore has no apartment.
-  @ManyToOne Apartment apartment;
+  @ManyToOne(optional=false) Apartment apartment;
   String flatNumber; int flatSizeSqft; int occupancyCount; boolean hasMeter;
   @OneToMany(mappedBy="household", cascade=CascadeType.ALL, orphanRemoval=true) @JsonIgnore List<WaterUsageLog> usageLogs=new ArrayList<>();
 }
@@ -162,7 +161,6 @@ record TariffPlanRequest(@NotBlank String name, @NotNull @DecimalMin("0.0") BigD
 record BillingCycleRequest(Long tariffPlanId, @NotNull LocalDate startsOn, @NotNull LocalDate endsOn){}
 record WaterPurchaseRequest(@NotBlank String source, @NotNull LocalDate purchasedOn, @NotNull @DecimalMin(value="0.01", message="Volume must be greater than 0") BigDecimal volumeKl, @NotNull @DecimalMin(value="0.01", message="Unit cost must be greater than 0") BigDecimal unitCost, String notes){}
 record DirectWaterPurchaseRequest(Long billingCycleId, @NotBlank String source, @NotNull LocalDate purchasedOn, @NotNull @DecimalMin(value="0.01", message="Volume must be greater than 0") BigDecimal volumeKl, @NotNull @DecimalMin(value="0.01", message="Unit cost must be greater than 0") BigDecimal unitCost, String notes){}
-record CommunityAdminRequest(@NotBlank String name, @NotBlank @Email String email, @NotBlank @Size(min=8,max=72) String password){}
 
 record DashboardSummary(
   long totalHouseholds,
@@ -197,7 +195,7 @@ class Views {
   static HouseholdView household(Household h){return new HouseholdView(h.id,h.apartment.id,h.flatNumber,h.flatSizeSqft,h.occupancyCount,h.hasMeter);}
   static UserView user(User u){
     String flat = u.household != null ? u.household.flatNumber : null;
-    String name = u.name != null && !u.name.isBlank() ? u.name : (u.role == Role.SUPER_ADMIN ? "Platform Administrator" : (u.role == Role.COMMUNITY_ADMIN ? "Community Administrator" : null));
+    String name = u.name != null && !u.name.isBlank() ? u.name : (u.role == Role.ADMIN ? "System Administrator" : null);
     String st = u.status != null ? u.status : "APPROVED";
     return new UserView(u.id, u.household != null ? u.household.id : null, u.apartment != null ? u.apartment.id : null, name, u.email, u.role, flat, st);
   }
@@ -1055,7 +1053,6 @@ class Views {
   final UserRepo users;final ApartmentRepo apartments;final HouseholdRepo households;final PasswordEncoder encoder;final Jwt jwt;
   AuthService(UserRepo u,ApartmentRepo a,HouseholdRepo h,PasswordEncoder e,Jwt j){users=u;apartments=a;households=h;encoder=e;jwt=j;}
   User register(RegisterRequest r){
-    if (r.role() != Role.RESIDENT) throw new Invalid("Public registration is available only for residents");
     Optional<User> existing = users.findByEmailIgnoreCase(r.email());
     if(existing.isPresent()) {
       User ex = existing.get();
@@ -1103,7 +1100,7 @@ class Views {
       if(!hhList.isEmpty()) h = hhList.get(0);
       else throw new Invalid("Flat number is required for Resident registration.");
     }
-    String userStatus = "PENDING";
+    String userStatus = (r.role() == Role.ADMIN) ? "APPROVED" : "PENDING";
     User u = new User();
     u.apartment = a;
     u.household = h;
@@ -1176,19 +1173,6 @@ class Views {
     return users.save(u);
   }
   List<UserView> listAll(){return users.findAll().stream().map(Views::user).toList();}
-  User createCommunityAdmin(long apartmentId, RegisterRequest r) {
-    if (r.role() != Role.COMMUNITY_ADMIN) throw new Invalid("Role must be COMMUNITY_ADMIN");
-    if (users.existsByEmailIgnoreCase(r.email())) throw new Duplicate("Email already registered");
-    Apartment apartment = apartments.findById(apartmentId).orElseThrow(() -> new NotFound("Apartment not found"));
-    User user = new User(); user.apartment = apartment; user.name = r.name(); user.email = r.email().toLowerCase().trim();
-    user.passwordHash = encoder.encode(r.password()); user.role = Role.COMMUNITY_ADMIN; user.status = "APPROVED";
-    return users.save(user);
-  }
-  User createSuperAdmin(String name, String email, String password) {
-    if (users.existsByEmailIgnoreCase(email)) throw new Duplicate("Email already registered");
-    User user = new User(); user.name = name; user.email = email.toLowerCase().trim(); user.passwordHash = encoder.encode(password);
-    user.role = Role.SUPER_ADMIN; user.status = "APPROVED"; return users.save(user);
-  }
 }
 
 
@@ -1196,7 +1180,7 @@ class Views {
   final Key key;final long accessMinutes,refreshDays;
   Jwt(@Value("${app.jwt.secret}")String secret,@Value("${app.jwt.access-minutes}")long access,@Value("${app.jwt.refresh-days}")long refresh){key=Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));accessMinutes=access;refreshDays=refresh;}
   String access(User u){return make(u,Duration.ofMinutes(accessMinutes),"access");}String refresh(User u){return make(u,Duration.ofDays(refreshDays),"refresh");}
-  String make(User u,Duration d,String type){return Jwts.builder().subject(u.email).claim("role",u.role.name()).claim("apartmentId",u.apartment == null ? null : u.apartment.id).claim("type",type).issuedAt(new Date()).expiration(Date.from(Instant.now().plus(d))).signWith(key).compact();}
+  String make(User u,Duration d,String type){return Jwts.builder().subject(u.email).claim("role",u.role.name()).claim("type",type).issuedAt(new Date()).expiration(Date.from(Instant.now().plus(d))).signWith(key).compact();}
   Claims parse(String s){return Jwts.parser().verifyWith((javax.crypto.SecretKey)key).build().parseSignedClaims(s).getPayload();}
 }
 @Component class JwtFilter extends OncePerRequestFilter {
@@ -1219,8 +1203,7 @@ class Views {
       .sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
       .authorizeHttpRequests(a->a
         .requestMatchers("/api/auth/**","/swagger-ui.html","/swagger-ui/**","/v3/api-docs/**","/v3/api-docs","/swagger-resources/**","/webjars/**","/h2-console/**").permitAll()
-        .requestMatchers("/api/super-admin/**").hasRole("SUPER_ADMIN")
-        .requestMatchers("/admin/**","/billing/**","/tariff/**","/procurement/**","/households/**","/alerts/admin/**","/invoice/admin/**","/meter/admin/**","/api/admin/**","/api/procurements/**").hasAnyRole("SUPER_ADMIN", "COMMUNITY_ADMIN")
+        .requestMatchers("/admin/**","/billing/**","/tariff/**","/procurement/**","/households/**","/alerts/admin/**","/invoice/admin/**","/meter/admin/**","/api/admin/**","/api/procurements/**").hasRole("ADMIN")
         .requestMatchers("/resident/**","/profile/**","/my-usage/**","/my-bills/**","/my-invoices/**","/my-alerts/**","/notifications/**","/api/resident/**").hasRole("RESIDENT")
         .anyRequest().authenticated()
       )
@@ -1240,21 +1223,6 @@ class Views {
 
 class NotFound extends RuntimeException{NotFound(String m){super(m);}}class Duplicate extends RuntimeException{Duplicate(String m){super(m);}}class Invalid extends RuntimeException{Invalid(String m){super(m);}}class Unauthorized extends RuntimeException{Unauthorized(){super("Invalid email or password");}}
 
-/** Central authorization boundary for tenant-owned resources.  Super admins bypass it; community admins must match the resource apartment. */
-@Component("tenantAccess") class TenantAccess {
-  final UserRepo users; final ApartmentRepo apartments; final HouseholdRepo households; final BillingCycleRepo cycles; final WaterPurchaseRepo purchases; final InvoiceRepo invoices; final AlertRepo alerts; final ResidentMessageRepo messages;
-  TenantAccess(UserRepo u, ApartmentRepo a, HouseholdRepo h, BillingCycleRepo c, WaterPurchaseRepo p, InvoiceRepo i, AlertRepo al, ResidentMessageRepo m){users=u;apartments=a;households=h;cycles=c;purchases=p;invoices=i;alerts=al;messages=m;}
-  boolean apartment(Authentication auth, long apartmentId){ return allowed(auth, apartmentId); }
-  boolean household(Authentication auth, long householdId){ return allowed(auth, households.findById(householdId).orElseThrow(()->new NotFound("Household not found")).apartment.id); }
-  boolean cycle(Authentication auth, long cycleId){ return allowed(auth, cycles.findById(cycleId).orElseThrow(()->new NotFound("Billing cycle not found")).apartment.id); }
-  boolean purchase(Authentication auth, long purchaseId){ return allowed(auth, purchases.findById(purchaseId).orElseThrow(()->new NotFound("Purchase not found")).billingCycle.apartment.id); }
-  boolean invoice(Authentication auth, long invoiceId){ return allowed(auth, invoices.findById(invoiceId).orElseThrow(()->new NotFound("Invoice not found")).billingCycle.apartment.id); }
-  boolean alert(Authentication auth, long alertId){ Alert a=alerts.findById(alertId).orElseThrow(()->new NotFound("Alert not found")); return allowed(auth, a.apartment.id); }
-  boolean message(Authentication auth, long messageId){ ResidentMessage m=messages.findById(messageId).orElseThrow(()->new NotFound("Message not found")); return allowed(auth, m.household.apartment.id); }
-  boolean user(Authentication auth, long userId){ User u=users.findById(userId).orElseThrow(()->new NotFound("User not found")); return u.apartment != null && allowed(auth,u.apartment.id); }
-  private boolean allowed(Authentication auth, long apartmentId) { User actor=users.findByEmailIgnoreCase(auth.getName()).orElseThrow(Unauthorized::new); return actor.role == Role.SUPER_ADMIN || (actor.role == Role.COMMUNITY_ADMIN && actor.apartment != null && actor.apartment.id.equals(apartmentId)); }
-}
-
 @RestControllerAdvice class Errors {
   @ExceptionHandler(NotFound.class)ResponseEntity<ApiError> nf(NotFound e){return err(HttpStatus.NOT_FOUND,"NOT_FOUND",e.getMessage());}
   @ExceptionHandler({Duplicate.class,DataIntegrityViolationException.class})ResponseEntity<ApiError> dup(Exception e){return err(HttpStatus.CONFLICT,"DUPLICATE",e.getMessage());}
@@ -1273,79 +1241,69 @@ class NotFound extends RuntimeException{NotFound(String m){super(m);}}class Dupl
 @CrossOrigin(origins = "*")
 @RestController @RequestMapping("/api/users") class UsersController {
   final AuthService auth;UsersController(AuthService a){auth=a;}
-  @GetMapping("/me")@PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN','RESIDENT')")UserView me(Authentication a){return Views.user(auth.me(a.getName()));}
-  @PutMapping("/me")@PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN','RESIDENT')")UserView update(Authentication a,@Valid @RequestBody UserUpdateRequest r){return Views.user(auth.update(a.getName(),r));}
-  @GetMapping @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN')")List<UserView> listAll(){return auth.listAll();}
-  @GetMapping("/pending") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN')") List<UserView> listPending(){return auth.listPendingUsers();}
-  @PutMapping("/{id}/approve") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.user(authentication,#p0)") UserView approve(@PathVariable long id){return Views.user(auth.approveUser(id));}
-  @PutMapping("/{id}/reject") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.user(authentication,#p0)") UserView reject(@PathVariable long id){return Views.user(auth.rejectUser(id));}
+  @GetMapping("/me")@PreAuthorize("hasAnyRole('ADMIN','RESIDENT')")UserView me(Authentication a){return Views.user(auth.me(a.getName()));}
+  @PutMapping("/me")@PreAuthorize("hasAnyRole('ADMIN','RESIDENT')")UserView update(Authentication a,@Valid @RequestBody UserUpdateRequest r){return Views.user(auth.update(a.getName(),r));}
+  @GetMapping @PreAuthorize("hasRole('ADMIN')")List<UserView> listAll(){return auth.listAll();}
+  @GetMapping("/pending") @PreAuthorize("hasRole('ADMIN')") List<UserView> listPending(){return auth.listPendingUsers();}
+  @PutMapping("/{id}/approve") @PreAuthorize("hasRole('ADMIN')") UserView approve(@PathVariable long id){return Views.user(auth.approveUser(id));}
+  @PutMapping("/{id}/reject") @PreAuthorize("hasRole('ADMIN')") UserView reject(@PathVariable long id){return Views.user(auth.rejectUser(id));}
 }
 @CrossOrigin(origins = "*")
 @RestController @RequestMapping("/api/apartments") class ApartmentsController {
   final AppService app;ApartmentsController(AppService a){app=a;}
-  @PutMapping("/{id}") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.apartment(authentication,#p0)")ApartmentView update(@PathVariable long id, @Valid @RequestBody ApartmentRequest r){return Views.apartment(app.updateApartment(id,r));}
-  @GetMapping("/{id}") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN','RESIDENT')")ApartmentView get(@PathVariable long id){return Views.apartment(app.apartment(id));}
-  @GetMapping("/{id}/summary") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.apartment(authentication,#p0)")DashboardSummary summary(@PathVariable long id){return app.getDashboardSummary(id);}
-  @GetMapping("/{id}/households") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN','RESIDENT')")List<HouseholdView> households(@PathVariable long id){return app.getHouseholds(id);}
-  @PostMapping("/{id}/households") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.apartment(authentication,#p0)")ResponseEntity<HouseholdView> household(@PathVariable long id,@Valid @RequestBody HouseholdRequest r){return ResponseEntity.status(201).body(Views.household(app.createHousehold(id,r)));}
-  @PostMapping(value="/{id}/usage/bulk-csv",consumes=MediaType.MULTIPART_FORM_DATA_VALUE) @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.apartment(authentication,#p0)")List<UsageView> bulk(@PathVariable long id,@RequestPart("file") MultipartFile file){return app.csv(id,file);}
+  @PostMapping @PreAuthorize("hasRole('ADMIN')")ResponseEntity<ApartmentView> create(@Valid @RequestBody ApartmentRequest r){return ResponseEntity.status(201).body(Views.apartment(app.create(r)));}
+  @PutMapping("/{id}") @PreAuthorize("hasRole('ADMIN')")ApartmentView update(@PathVariable long id, @Valid @RequestBody ApartmentRequest r){return Views.apartment(app.updateApartment(id,r));}
+  @GetMapping("/{id}") @PreAuthorize("hasAnyRole('ADMIN','RESIDENT')")ApartmentView get(@PathVariable long id){return Views.apartment(app.apartment(id));}
+  @GetMapping("/{id}/summary") @PreAuthorize("hasRole('ADMIN')")DashboardSummary summary(@PathVariable long id){return app.getDashboardSummary(id);}
+  @GetMapping("/{id}/households") @PreAuthorize("hasAnyRole('ADMIN','RESIDENT')")List<HouseholdView> households(@PathVariable long id){return app.getHouseholds(id);}
+  @PostMapping("/{id}/households") @PreAuthorize("hasRole('ADMIN')")ResponseEntity<HouseholdView> household(@PathVariable long id,@Valid @RequestBody HouseholdRequest r){return ResponseEntity.status(201).body(Views.household(app.createHousehold(id,r)));}
+  @PostMapping(value="/{id}/usage/bulk-csv",consumes=MediaType.MULTIPART_FORM_DATA_VALUE) @PreAuthorize("hasRole('ADMIN')")List<UsageView> bulk(@PathVariable long id,@RequestPart("file") MultipartFile file){return app.csv(id,file);}
 
-  @PostMapping("/{id}/tariff-plans") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.apartment(authentication,#p0)")ResponseEntity<TariffPlanView> createPlan(@PathVariable long id, @Valid @RequestBody TariffPlanRequest r){return ResponseEntity.status(201).body(Views.plan(app.createPlan(id,r)));}
-  @GetMapping("/{id}/tariff-plans") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN','RESIDENT')")List<TariffPlanView> getPlans(@PathVariable long id){return app.getPlans(id);}
-  @PutMapping("/{id}/tariff-plans/{planId}") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.apartment(authentication,#p0)")TariffPlanView updatePlan(@PathVariable long id, @PathVariable long planId, @Valid @RequestBody TariffPlanRequest r){return Views.plan(app.updatePlan(id,planId,r));}
-  @DeleteMapping("/{id}/tariff-plans/{planId}") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.apartment(authentication,#p0)")ResponseEntity<Void> deletePlan(@PathVariable long id, @PathVariable long planId){app.deletePlan(id,planId); return ResponseEntity.noContent().build();}
+  @PostMapping("/{id}/tariff-plans") @PreAuthorize("hasRole('ADMIN')")ResponseEntity<TariffPlanView> createPlan(@PathVariable long id, @Valid @RequestBody TariffPlanRequest r){return ResponseEntity.status(201).body(Views.plan(app.createPlan(id,r)));}
+  @GetMapping("/{id}/tariff-plans") @PreAuthorize("hasAnyRole('ADMIN','RESIDENT')")List<TariffPlanView> getPlans(@PathVariable long id){return app.getPlans(id);}
+  @PutMapping("/{id}/tariff-plans/{planId}") @PreAuthorize("hasRole('ADMIN')")TariffPlanView updatePlan(@PathVariable long id, @PathVariable long planId, @Valid @RequestBody TariffPlanRequest r){return Views.plan(app.updatePlan(id,planId,r));}
+  @DeleteMapping("/{id}/tariff-plans/{planId}") @PreAuthorize("hasRole('ADMIN')")ResponseEntity<Void> deletePlan(@PathVariable long id, @PathVariable long planId){app.deletePlan(id,planId); return ResponseEntity.noContent().build();}
 
-  @PostMapping("/{id}/billing-cycles") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.apartment(authentication,#p0)")ResponseEntity<BillingCycleView> createCycle(@PathVariable long id, @Valid @RequestBody BillingCycleRequest r){return ResponseEntity.status(201).body(Views.cycle(app.createCycle(id,r)));}
-  @GetMapping("/{id}/billing-cycles") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN','RESIDENT')")List<BillingCycleView> getCycles(@PathVariable long id){return app.getCycles(id);}
+  @PostMapping("/{id}/billing-cycles") @PreAuthorize("hasRole('ADMIN')")ResponseEntity<BillingCycleView> createCycle(@PathVariable long id, @Valid @RequestBody BillingCycleRequest r){return ResponseEntity.status(201).body(Views.cycle(app.createCycle(id,r)));}
+  @GetMapping("/{id}/billing-cycles") @PreAuthorize("hasAnyRole('ADMIN','RESIDENT')")List<BillingCycleView> getCycles(@PathVariable long id){return app.getCycles(id);}
 }
 @CrossOrigin(origins = "*")
 @RestController @RequestMapping("/api/admin") class AdminController {
   final AppService app; AdminController(AppService a){app=a;}
-  @PostMapping("/reset-data") @PreAuthorize("hasRole('SUPER_ADMIN')") Map<String, String> resetData(){ return app.resetAllData(); }
-}
-@CrossOrigin(origins = "*")
-@RestController @RequestMapping("/api/super-admin") class SuperAdminController {
-  final AppService app; final AuthService auth; final ApartmentRepo apartments;
-  SuperAdminController(AppService app, AuthService auth, ApartmentRepo apartments){this.app=app;this.auth=auth;this.apartments=apartments;}
-  @PostMapping("/communities") @PreAuthorize("hasRole('SUPER_ADMIN')") ResponseEntity<ApartmentView> create(@Valid @RequestBody ApartmentRequest r){return ResponseEntity.status(HttpStatus.CREATED).body(Views.apartment(app.create(r)));}
-  @GetMapping("/communities") @PreAuthorize("hasRole('SUPER_ADMIN')") List<ApartmentView> list(){return apartments.findAll().stream().map(Views::apartment).toList();}
-  @GetMapping("/communities/{id}") @PreAuthorize("hasRole('SUPER_ADMIN')") ApartmentView get(@PathVariable long id){return Views.apartment(app.apartment(id));}
-  @PostMapping("/communities/{id}/admins") @PreAuthorize("hasRole('SUPER_ADMIN')") ResponseEntity<UserView> createAdmin(@PathVariable long id,@Valid @RequestBody CommunityAdminRequest r){
-    return ResponseEntity.status(HttpStatus.CREATED).body(Views.user(auth.createCommunityAdmin(id,new RegisterRequest(id,null,r.name(),r.email(),r.password(),Role.COMMUNITY_ADMIN,null,null,null))));
-  }
+  @PostMapping("/reset-data") @PreAuthorize("hasRole('ADMIN')") Map<String, String> resetData(){ return app.resetAllData(); }
 }
 @CrossOrigin(origins = "*")
 @RestController @RequestMapping("/api/households") class HouseholdsController {
   final AppService app;HouseholdsController(AppService a){app=a;}
-  @GetMapping("/{id}") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN','RESIDENT')")HouseholdView get(@PathVariable long id){return Views.household(app.household(id));}
-  @PutMapping("/{id}") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.household(authentication,#p0)")HouseholdView put(@PathVariable long id,@Valid @RequestBody HouseholdRequest r){return Views.household(app.updateHousehold(id,r));}
-  @DeleteMapping("/{id}") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.household(authentication,#p0)")ResponseEntity<Void> delete(@PathVariable long id){app.deleteHousehold(id); return ResponseEntity.noContent().build();}
-  @PutMapping("/{id}/meter") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.household(authentication,#p0)")HouseholdView meter(@PathVariable long id,@RequestBody MeterRequest r){return Views.household(app.meter(id,r));}
-  @PostMapping("/{id}/usage") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN','RESIDENT')")ResponseEntity<UsageView> usage(@PathVariable long id,@Valid @RequestBody UsageRequest r){return ResponseEntity.status(201).body(app.log(id,r,UsageSource.MANUAL));}
+  @GetMapping("/{id}") @PreAuthorize("hasAnyRole('ADMIN','RESIDENT')")HouseholdView get(@PathVariable long id){return Views.household(app.household(id));}
+  @PutMapping("/{id}") @PreAuthorize("hasRole('ADMIN')")HouseholdView put(@PathVariable long id,@Valid @RequestBody HouseholdRequest r){return Views.household(app.updateHousehold(id,r));}
+  @DeleteMapping("/{id}") @PreAuthorize("hasRole('ADMIN')")ResponseEntity<Void> delete(@PathVariable long id){app.deleteHousehold(id); return ResponseEntity.noContent().build();}
+  @PutMapping("/{id}/meter") @PreAuthorize("hasRole('ADMIN')")HouseholdView meter(@PathVariable long id,@RequestBody MeterRequest r){return Views.household(app.meter(id,r));}
+  @PostMapping("/{id}/usage") @PreAuthorize("hasAnyRole('ADMIN','RESIDENT')")ResponseEntity<UsageView> usage(@PathVariable long id,@Valid @RequestBody UsageRequest r){return ResponseEntity.status(201).body(app.log(id,r,UsageSource.MANUAL));}
   @GetMapping("/usage") @PreAuthorize("hasAnyRole('ADMIN','RESIDENT')")List<UsageView> getAllUsage(){return app.getAllUsageLogs();}
-  @GetMapping("/{id}/benchmark") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN','RESIDENT')")BenchmarkView getBenchmark(@PathVariable long id){return app.getBenchmark(id);}
+  @GetMapping("/{id}/benchmark") @PreAuthorize("hasAnyRole('ADMIN','RESIDENT')")BenchmarkView getBenchmark(@PathVariable long id){return app.getBenchmark(id);}
 }
 @CrossOrigin(origins = "*")
 @RestController @RequestMapping("/api/procurements") class ProcurementController {
   final AppService app; ProcurementController(AppService a){app=a;}
-  @GetMapping @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN','RESIDENT')") List<WaterPurchaseView> getAll(){return app.getAllPurchases();}
-  @PostMapping @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.cycle(authentication,#p0.billingCycleId())") ResponseEntity<WaterPurchaseView> create(@Valid @RequestBody DirectWaterPurchaseRequest r){return ResponseEntity.status(201).body(Views.purchase(app.addDirectPurchase(r)));}
-  @PutMapping("/{id}") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.purchase(authentication,#p0)") WaterPurchaseView update(@PathVariable long id, @Valid @RequestBody DirectWaterPurchaseRequest r){return Views.purchase(app.updateDirectPurchase(id, r));}
-  @DeleteMapping("/{id}") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.purchase(authentication,#p0)") ResponseEntity<Void> delete(@PathVariable long id){app.deleteDirectPurchase(id); return ResponseEntity.noContent().build();}
+  @GetMapping @PreAuthorize("hasAnyRole('ADMIN','RESIDENT')") List<WaterPurchaseView> getAll(){return app.getAllPurchases();}
+  @PostMapping @PreAuthorize("hasRole('ADMIN')") ResponseEntity<WaterPurchaseView> create(@Valid @RequestBody DirectWaterPurchaseRequest r){return ResponseEntity.status(201).body(Views.purchase(app.addDirectPurchase(r)));}
+  @PutMapping("/{id}") @PreAuthorize("hasRole('ADMIN')") WaterPurchaseView update(@PathVariable long id, @Valid @RequestBody DirectWaterPurchaseRequest r){return Views.purchase(app.updateDirectPurchase(id, r));}
+  @DeleteMapping("/{id}") @PreAuthorize("hasRole('ADMIN')") ResponseEntity<Void> delete(@PathVariable long id){app.deleteDirectPurchase(id); return ResponseEntity.noContent().build();}
 }
 @CrossOrigin(origins = "*")
 @RestController @RequestMapping("/api/billing-cycles") class BillingCyclesController {
   final AppService app;BillingCyclesController(AppService a){app=a;}
   @GetMapping("/invoices") @PreAuthorize("hasAnyRole('ADMIN','RESIDENT')")List<InvoiceView> getAllInvoices(){return app.getAllInvoices();}
-  @GetMapping("/{id}") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN','RESIDENT')")BillingCycleView getCycle(@PathVariable long id){return Views.cycle(app.getCycle(id));}
-  @PostMapping("/{id}/purchases") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.cycle(authentication,#p0)")ResponseEntity<WaterPurchaseView> addPurchase(@PathVariable long id, @Valid @RequestBody WaterPurchaseRequest r){return ResponseEntity.status(201).body(Views.purchase(app.addPurchase(id,r)));}
-  @GetMapping("/{id}/purchases") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN','RESIDENT')")List<WaterPurchaseView> getPurchases(@PathVariable long id){return app.getPurchases(id);}
-  @PutMapping("/{id}/purchases/{purchaseId}") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.cycle(authentication,#p0)")WaterPurchaseView updatePurchase(@PathVariable long id, @PathVariable long purchaseId, @Valid @RequestBody WaterPurchaseRequest r){return Views.purchase(app.updatePurchase(id,purchaseId,r));}
-  @DeleteMapping("/{id}/purchases/{purchaseId}") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.cycle(authentication,#p0)")ResponseEntity<Void> deletePurchase(@PathVariable long id, @PathVariable long purchaseId){app.deletePurchase(id,purchaseId); return ResponseEntity.noContent().build();}
-  @PostMapping("/{id}/finalize") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.cycle(authentication,#p0)")List<InvoiceView> finalizeCycle(@PathVariable long id){return app.finalizeCycle(id);}
+  @GetMapping("/{id}") @PreAuthorize("hasAnyRole('ADMIN','RESIDENT')")BillingCycleView getCycle(@PathVariable long id){return Views.cycle(app.getCycle(id));}
+  @PostMapping("/{id}/purchases") @PreAuthorize("hasRole('ADMIN')")ResponseEntity<WaterPurchaseView> addPurchase(@PathVariable long id, @Valid @RequestBody WaterPurchaseRequest r){return ResponseEntity.status(201).body(Views.purchase(app.addPurchase(id,r)));}
+  @GetMapping("/{id}/purchases") @PreAuthorize("hasAnyRole('ADMIN','RESIDENT')")List<WaterPurchaseView> getPurchases(@PathVariable long id){return app.getPurchases(id);}
+  @PutMapping("/{id}/purchases/{purchaseId}") @PreAuthorize("hasRole('ADMIN')")WaterPurchaseView updatePurchase(@PathVariable long id, @PathVariable long purchaseId, @Valid @RequestBody WaterPurchaseRequest r){return Views.purchase(app.updatePurchase(id,purchaseId,r));}
+  @DeleteMapping("/{id}/purchases/{purchaseId}") @PreAuthorize("hasRole('ADMIN')")ResponseEntity<Void> deletePurchase(@PathVariable long id, @PathVariable long purchaseId){app.deletePurchase(id,purchaseId); return ResponseEntity.noContent().build();}
+  @PostMapping("/{id}/finalize") @PreAuthorize("hasRole('ADMIN')")List<InvoiceView> finalizeCycle(@PathVariable long id){return app.finalizeCycle(id);}
   @GetMapping("/{id}/invoices") @PreAuthorize("hasAnyRole('ADMIN','RESIDENT')")List<InvoiceView> getInvoices(@PathVariable long id){return app.getInvoices(id);}
-  @PutMapping("/invoices/{invoiceId}/pay") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.invoice(authentication,#p0)")InvoiceView payInvoice(@PathVariable long invoiceId){return Views.invoice(app.markInvoicePaid(invoiceId));}
-  @PostMapping("/{id}/archive") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.cycle(authentication,#p0)")BillingCycleView archiveCycle(@PathVariable long id){return Views.cycle(app.archiveCycle(id));}
+  @PutMapping("/invoices/{invoiceId}/pay") @PreAuthorize("hasRole('ADMIN')")InvoiceView payInvoice(@PathVariable long invoiceId){return Views.invoice(app.markInvoicePaid(invoiceId));}
+  @PostMapping("/{id}/archive") @PreAuthorize("hasRole('ADMIN')")BillingCycleView archiveCycle(@PathVariable long id){return Views.cycle(app.archiveCycle(id));}
 }
 @CrossOrigin(origins = "*")
 @RestController @RequestMapping("/api/invoices") class InvoicesController {
@@ -1370,14 +1328,14 @@ class NotFound extends RuntimeException{NotFound(String m){super(m);}}class Dupl
     User u = auth.me(authentication.getName());
     return Views.residentMessage(app.sendResidentMessage(u, r));
   }
-  @GetMapping @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN')")
+  @GetMapping @PreAuthorize("hasRole('ADMIN')")
   List<ResidentMessageView> listAll() { return app.listResidentMessages(); }
   @GetMapping("/my") @PreAuthorize("hasAnyRole('ADMIN','RESIDENT')")
   List<ResidentMessageView> listMy(Authentication authentication) {
     User u = auth.me(authentication.getName());
     return app.listMyResidentMessages(u.household != null ? u.household.id : null);
   }
-  @PutMapping("/{id}/read") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.message(authentication,#p0)")
+  @PutMapping("/{id}/read") @PreAuthorize("hasRole('ADMIN')")
   ResidentMessageView markRead(@PathVariable long id) { return Views.residentMessage(app.markResidentMessageRead(id)); }
 }
 
@@ -1385,7 +1343,8 @@ class NotFound extends RuntimeException{NotFound(String m){super(m);}}class Dupl
 @RestController @RequestMapping("/api/alerts") class AlertsController {
   final AppService app; final AlertEngineService alertEngine; AlertsController(AppService a, AlertEngineService ae){app=a; alertEngine=ae;}
   @GetMapping @PreAuthorize("hasAnyRole('ADMIN','RESIDENT')")List<AlertView> getAlerts(){return app.getAlerts();}
-  @PutMapping("/{id}/resolve") @PreAuthorize("hasAnyRole('SUPER_ADMIN','COMMUNITY_ADMIN') and @tenantAccess.alert(authentication,#p0)")AlertView resolve(@PathVariable long id){return Views.alert(app.markAlertResolved(id));}
-  @PostMapping("/evaluate") @PreAuthorize("hasRole('SUPER_ADMIN')")AlertAuditResult evaluate(){return alertEngine.evaluateAlerts();}
+  @PutMapping("/{id}/resolve") @PreAuthorize("hasRole('ADMIN')")AlertView resolve(@PathVariable long id){return Views.alert(app.markAlertResolved(id));}
+  @PostMapping("/evaluate") @PreAuthorize("hasRole('ADMIN')")AlertAuditResult evaluate(){return alertEngine.evaluateAlerts();}
   @PostMapping("/send-message") @PreAuthorize("hasRole('ADMIN')")AlertView sendMessage(@Valid @RequestBody AdminMessageRequest r){return Views.alert(app.sendAdminMessage(r));}
 }
+

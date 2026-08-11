@@ -262,7 +262,7 @@ export default function SignupPage() {
               />
 
               <p className="mt-4 text-sm font-medium text-slate-700">Account type</p>
-              <div className="mt-1.5 grid grid-cols-1 gap-3">
+              <div className="mt-1.5 grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setRole('RESIDENT')}
@@ -273,6 +273,17 @@ export default function SignupPage() {
                   }`}
                 >
                   Resident
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRole('ADMIN')}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
+                    role === 'ADMIN'
+                      ? 'border-sky-600 bg-sky-600 text-white font-bold'
+                      : 'border-slate-300 text-slate-700 hover:border-slate-400'
+                  }`}
+                >
+                  Admin
                 </button>
               </div>
 

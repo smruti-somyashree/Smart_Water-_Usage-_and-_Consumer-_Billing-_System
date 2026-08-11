@@ -9,8 +9,7 @@ import SignupPage from './pages/SignupPage'
 import AccessDeniedPage from './pages/AccessDeniedPage'
 import AdminDashboardPage from './pages/AdminDashboardPage'
 import ResidentDashboardPage from './pages/ResidentDashboardPage'
-import SuperAdminDashboardPage from './pages/SuperAdminDashboardPage'
-import { AdminRoute, ResidentRoute, SuperAdminRoute } from './components/ProtectedRoute'
+import { AdminRoute, ResidentRoute } from './components/ProtectedRoute'
 
 const SPLASH_VISIBLE_MS = 2600
 const SPLASH_EXIT_MS = 400
@@ -56,11 +55,6 @@ export default function App() {
         <Route path="/alerts/admin/*" element={<AdminDashboardPage />} />
         <Route path="/invoice/admin/*" element={<AdminDashboardPage />} />
         <Route path="/meter/admin/*" element={<AdminDashboardPage />} />
-      </Route>
-
-      <Route element={<SuperAdminRoute />}>
-        <Route path="/super-admin" element={<Navigate to="/super-admin/dashboard" replace />} />
-        <Route path="/super-admin/*" element={<SuperAdminDashboardPage />} />
       </Route>
 
       {/* Protected Resident Routes (RESIDENT Only) */}

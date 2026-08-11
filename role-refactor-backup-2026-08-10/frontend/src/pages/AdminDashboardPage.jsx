@@ -47,7 +47,7 @@ export default function AdminDashboardPage() {
       const meRes = await fetch(`${apiBaseUrl}/api/users/me`, { headers })
       if (meRes.ok) {
         const u = await meRes.json()
-        if (u.role !== 'COMMUNITY_ADMIN') {
+        if (u.role !== 'ADMIN') {
           navigate('/access-denied', { replace: true })
           return
         }
@@ -99,7 +99,7 @@ export default function AdminDashboardPage() {
             </div>
             <div>
               <span className="font-display font-bold text-slate-900 group-hover:text-sky-600 transition-colors">SmartWater</span>
-              <span className="block text-[11px] font-bold text-sky-700 uppercase">COMMUNITY ADMIN</span>
+              <span className="block text-[11px] font-bold text-sky-700 uppercase">ENTERPRISE ADMIN</span>
             </div>
           </div>
 
@@ -135,7 +135,7 @@ export default function AdminDashboardPage() {
             <div className="overflow-hidden">
               <span className="text-xs font-bold text-slate-900 block truncate">{user?.email || 'admin@demo.local'}</span>
               <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
-                Role: COMMUNITY ADMIN
+                Role: ADMIN
               </span>
             </div>
           </div>

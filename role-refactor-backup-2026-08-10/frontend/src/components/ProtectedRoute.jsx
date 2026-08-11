@@ -17,19 +17,11 @@ export function AdminRoute() {
     return <Navigate to="/login" replace />
   }
 
-  if (role !== 'COMMUNITY_ADMIN') {
+  if (role !== 'ADMIN') {
     return <Navigate to="/access-denied" replace />
   }
 
   return <Outlet />
-}
-
-export function SuperAdminRoute() {
-  const token = localStorage.getItem('smartwater.accessToken')
-  let role = null
-  try { role = token ? JSON.parse(atob(token.split('.')[1])).role : null } catch { role = null }
-  if (!token) return <Navigate to="/login" replace />
-  return role === 'SUPER_ADMIN' ? <Outlet /> : <Navigate to="/access-denied" replace />
 }
 
 export function ResidentRoute() {

@@ -1,5 +1,4 @@
 INSERT INTO apartments (name,address,total_units) VALUES ('Demo Heights','1 Water Way, Demo City',2);
 INSERT INTO households (apartment_id,flat_number,flat_size_sqft,occupancy_count,has_meter) VALUES ((SELECT id FROM apartments WHERE name='Demo Heights'),'A-101',850,3,true),((SELECT id FROM apartments WHERE name='Demo Heights'),'A-102',920,2,true);
-INSERT INTO users (apartment_id,email,password_hash,role) VALUES ((SELECT id FROM apartments WHERE name='Demo Heights'),'community-admin@demo.local','$2a$10$rzyvmaxZOjB9DNkuHgnVdOyEukJTwx7dNotM70tDCJcZJipFThvE.','COMMUNITY_ADMIN');
-INSERT INTO users (email,password_hash,role) VALUES ('super-admin@demo.local','$2a$10$rzyvmaxZOjB9DNkuHgnVdOyEukJTwx7dNotM70tDCJcZJipFThvE.','SUPER_ADMIN');
+INSERT INTO users (apartment_id,email,password_hash,role) VALUES ((SELECT id FROM apartments WHERE name='Demo Heights'),'admin@demo.local','$2a$10$rzyvmaxZOjB9DNkuHgnVdOyEukJTwx7dNotM70tDCJcZJipFThvE.','ADMIN');
 INSERT INTO users (household_id,apartment_id,email,password_hash,role) VALUES ((SELECT id FROM households WHERE flat_number='A-101'),(SELECT id FROM apartments WHERE name='Demo Heights'),'resident@demo.local','$2a$10$rzyvmaxZOjB9DNkuHgnVdOyEukJTwx7dNotM70tDCJcZJipFThvE.','RESIDENT');

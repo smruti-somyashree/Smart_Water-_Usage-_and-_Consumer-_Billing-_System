@@ -16,8 +16,7 @@ export default function AccessDeniedPage() {
       }
     }
     if (role === 'RESIDENT') navigate('/resident/dashboard', { replace: true })
-    else if (role === 'COMMUNITY_ADMIN') navigate('/admin/dashboard', { replace: true })
-    else if (role === 'SUPER_ADMIN') navigate('/super-admin/dashboard', { replace: true })
+    else if (role === 'ADMIN') navigate('/admin/dashboard', { replace: true })
     else navigate('/login', { replace: true })
   }
 

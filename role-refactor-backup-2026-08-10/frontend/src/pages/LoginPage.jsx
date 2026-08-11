@@ -44,8 +44,7 @@ export default function LoginPage() {
       const data = await r.json()
       localStorage.setItem('smartwater.accessToken', data.accessToken)
       localStorage.setItem('smartwater.refreshToken', data.refreshToken || '')
-      const dashboards = { SUPER_ADMIN: '/super-admin/dashboard', COMMUNITY_ADMIN: '/admin/dashboard', RESIDENT: '/resident/dashboard' }
-      navigate(dashboards[data.user?.role] || '/login', { replace: true })
+      navigate(data.user?.role === 'ADMIN' ? '/admin/dashboard' : '/resident/dashboard', { replace: true })
     } catch {
       setError("Couldn't reach the server. Make sure the Spring Boot backend is running on port 8082.")
     } finally {

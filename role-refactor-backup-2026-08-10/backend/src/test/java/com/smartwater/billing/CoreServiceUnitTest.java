@@ -67,13 +67,12 @@ class CoreServiceUnitTest {
 
   @Test void jwtBuildsSubjectAndRole() {
     Jwt jwt = new Jwt("very-long-secure-secret-key-for-jwt-testing-123456", 60L, 7L);
-    User u = user(1L, apartment(1L), null, "community-admin@demo.local", Role.COMMUNITY_ADMIN);
+    User u = user(1L, apartment(1L), null, "admin@demo.local", Role.ADMIN);
     String token = jwt.access(u);
     var claims = jwt.parse(token);
 
-    assertEquals("community-admin@demo.local", claims.getSubject());
-    assertEquals("COMMUNITY_ADMIN", claims.get("role", String.class));
-    assertEquals(1L, claims.get("apartmentId", Long.class));
+    assertEquals("admin@demo.local", claims.getSubject());
+    assertEquals("ADMIN", claims.get("role", String.class));
   }
 
   @Test void alertEngineServiceDetectsOveruseAndSpike() {
